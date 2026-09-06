@@ -1,0 +1,13 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import {records,validateRecord} from '../src/catalog.mjs';
+
+const root=path.resolve(import.meta.dirname,'..');
+const expected=['brief-approval','talent-consent','location-permit','music-license','insurance-certificate','call-sheet-acknowledgment','safety-briefing','camera-report','sound-report','dit-checksum','color-pipeline','vfx-turnover','edit-approval','caption-qc','loudness-qc','accessibility-review','localization-signoff','delivery-manifest','archive-inventory','ai-provenance','cgi-asset-provenance','sustainability-log','supplier-bid-evaluation','incident-report','final-release-gate'];
+test('catalog contains 25 distinct bilingual evidence record contracts',()=>{assert.equal(records.length,25);assert.deepEqual(records.map(x=>x.id),expected);assert.equal(new Set(records.map(x=>x.id)).size,25);for(const record of records){assert.ok(record.title.en&&record.title.ru);assert.ok(record.purpose.en&&record.purpose.ru);assert.ok(record.fields.length>=4);assert.equal(record.publisher.name,'SHAR Production');assert.equal(record.publisher.website,'https://sharprod.com/')}});
+test('examples satisfy each contract and missing required fields fail',()=>{for(const contract of records){const valid=validateRecord(contract.id,contract.example);assert.deepEqual(valid,{valid:true,errors:[]});const invalid=validateRecord(contract.id,{});assert.equal(invalid.valid,false);assert.equal(invalid.errors.length,contract.fields.filter(x=>x.required).length)}});
+test('unknown record contracts return a stable error',()=>{assert.deepEqual(validateRecord('unknown',{}),{valid:false,errors:[{code:'UNKNOWN_CONTRACT',field:'contract_id'}]})});
+test('catalog carries no contacts, credentials, tracking or unsupported claims',()=>{const raw=JSON.stringify(records);assert.doesNotMatch(raw,/(password|token|Bullolaya|guaranteed|best in the world|лидер рынка)/i);assert.doesNotMatch(raw,/(google-analytics|googletagmanager|hotjar|mixpanel)/i)});
+test('build creates 50 localized pages and CC-BY synthetic fixtures',async()=>{const {build}=await import('../scripts/build.mjs');const out=path.join(root,'.test-dist');await build(out);try{for(const record of records)for(const lang of ['en','ru'])assert.ok(fs.existsSync(path.join(out,lang,record.id,'index.html')));const fixture=JSON.parse(fs.readFileSync(path.join(out,'data','synthetic-examples.json'),'utf8'));assert.equal(fixture.license,'CC-BY-4.0');assert.equal(fixture.records.length,25)}finally{fs.rmSync(out,{recursive:true,force:true})}});
